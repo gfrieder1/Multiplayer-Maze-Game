@@ -35,16 +35,22 @@ threading.Thread(target=background_timer, daemon=True).start()
 
 # Maze (2D array) generation function
 def generate_maze(width, height):
-    # Ensure odd dimensions
     if width % 2 == 0:
         width += 1
     if height % 2 == 0:
         height += 1
 
-    # Initialize the grid: all walls
     maze = [[1 for _ in range(width)] for _ in range(height)]
 
-    def carve_passages(x, y):
+    # Track the farthest cell visited
+    max_depth = [0]
+    farthest = [(1, 1)]  # Default to start
+
+    def carve_passages(x, y, depth=0):
+        if depth > max_depth[0]:
+            max_depth[0] = depth
+            farthest[0] = (x, y)
+
         directions = [(0, -2), (2, 0), (0, 2), (-2, 0)]
         random.shuffle(directions)
 
@@ -53,11 +59,17 @@ def generate_maze(width, height):
             if 0 < nx < width and 0 < ny < height and maze[ny][nx] == 1:
                 maze[ny][nx] = 0
                 maze[y + dy // 2][x + dx // 2] = 0
-                carve_passages(nx, ny)
+                carve_passages(nx, ny, depth + 1)
 
-    # Start position
+    # Start at 1,1
     maze[1][1] = 0
     carve_passages(1, 1)
+
+    # Mark start and exit
+    sx, sy = 1, 1
+    ex, ey = farthest[0]
+    maze[sy][sx] = 2  # Start
+    maze[ey][ex] = 3  # Exit
 
     return maze
 
@@ -75,6 +87,12 @@ def game():
                 }
                 .wall {
                     background-color: black;
+                }
+                .player {
+                    background-color: green;
+                }
+                .exit {
+                    background-color: red;
                 }
             </style>
         </head>
@@ -109,6 +127,8 @@ def game():
                         row.forEach(cell => {
                             const td = document.createElement('td');
                             if (cell === 1) td.classList.add('wall');
+                            else if (cell === 2) td.classList.add('player');
+                            else if (cell === 3) td.classList.add('exit');
                             tr.appendChild(td);
                         });
                         table.appendChild(tr);
