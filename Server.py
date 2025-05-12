@@ -1,5 +1,6 @@
 from flask import Flask, render_template_string
 from flask_socketio import SocketIO, emit, disconnect
+import random
 import threading
 import time
 
@@ -11,8 +12,11 @@ timer_thread = None
 timer_running = False
 timer_value = 0
 
+# Maze state
+maze = None
+
 # Connected client info
-game_client_count = 0
+client_count = 0
 
 # Lock for thread safety
 lock = threading.Lock()
@@ -25,55 +29,127 @@ def background_timer():
         with lock:
             if timer_running:
                 timer_value += 1
-                socketio.emit('timer_update', {'time': timer_value})                
+                socketio.emit('timer_update', {'time': timer_value})
 # Start background thread once
 threading.Thread(target=background_timer, daemon=True).start()
+
+# Maze (2D array) generation function
+def generate_maze(width, height):
+    # Ensure odd dimensions
+    if width % 2 == 0:
+        width += 1
+    if height % 2 == 0:
+        height += 1
+
+    # Initialize the grid: all walls
+    maze = [[1 for _ in range(width)] for _ in range(height)]
+
+    def carve_passages(x, y):
+        directions = [(0, -2), (2, 0), (0, 2), (-2, 0)]
+        random.shuffle(directions)
+
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 < nx < width and 0 < ny < height and maze[ny][nx] == 1:
+                maze[ny][nx] = 0
+                maze[y + dy // 2][x + dx // 2] = 0
+                carve_passages(nx, ny)
+
+    # Start position
+    maze[1][1] = 0
+    carve_passages(1, 1)
+
+    return maze
 
 @app.route('/game')
 def game():
     return render_template_string("""
-        <h1>This is the game</h1>
-        <p>Timer: <span id="timer">...</span> seconds</p>
-        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-        <script>
-            const socket = io();
-            socket.on('connect', () => {
-                console.log('Connected to server');
-            });
+        <html>
+        <head>
+            <style>
+                table { border-collapse: collapse; }
+                td {
+                    width: 20px;
+                    height: 20px;
+                    border: 1px solid black;
+                }
+                .wall {
+                    background-color: black;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>This is the game</h1>
+            <p>Timer: <span id="timer">...</span> seconds</p>
+            <div id="maze_container"></div>
 
-            socket.on('disconnect', () => {
-                console.log('Disconnected from server');
-            });
+            <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+            <script>
+                const socket = io();
 
-            socket.on('timer_update', data => {
-                document.getElementById('timer').innerText = data.time;
-            });
-        </script>
+                socket.on('connect', () => {
+                    console.log('Connected to server');
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('Disconnected from server');
+                });
+
+                socket.on('timer_update', data => {
+                    document.getElementById('timer').innerText = data.time;
+                });
+
+                socket.on('maze_data', data => {
+                    const maze = data.maze;
+                    const container = document.getElementById('maze_container');
+                    const table = document.createElement('table');
+
+                    maze.forEach(row => {
+                        const tr = document.createElement('tr');
+                        row.forEach(cell => {
+                            const td = document.createElement('td');
+                            if (cell === 1) td.classList.add('wall');
+                            tr.appendChild(td);
+                        });
+                        table.appendChild(tr);
+                    });
+
+                    container.appendChild(table);
+                });
+            </script>
+        </body>
+        </html>
     """)
 
 @socketio.on('connect')
 def handle_connect():
-    global timer_running, timer_thread, timer_value, game_client_count
+    global timer_running, timer_thread, timer_value, client_count, maze
     with lock:
-        game_client_count += 1
-        print(f"Client connected to /game. Total game clients: {game_client_count}")
+        client_count += 1
+        print(f"Client connected. Total clients: {client_count}")
         if not timer_running:
+            # Start a game session!
             timer_running = True
             timer_value = 0
+            # Generate a maze
+            maze = generate_maze(31,31)
+        # Send maze to client
+        emit('maze_data', {'maze': maze})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    global timer_running, game_client_count
+    global timer_running, client_count
     with lock:
-        game_client_count -= 1
-        print(f"Client disconnected. Total clients: {game_client_count}")
-        if game_client_count <= 0: # Should never be negative
+        client_count -= 1
+        print(f"Client disconnected. Total clients: {client_count}")
+        if client_count <= 0: # Should never be negative
             timer_running = False
             timer_value = 0
+            maze = None
 
 @app.route('/controller')
 def controller():
     return "This is the controller"
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
