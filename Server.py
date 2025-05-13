@@ -35,43 +35,61 @@ threading.Thread(target=background_timer, daemon=True).start()
 
 # Maze (2D array) generation function
 def generate_maze(width, height):
-    if width % 2 == 0:
-        width += 1
-    if height % 2 == 0:
-        height += 1
+    if width % 2 == 0: width += 1
+    if height % 2 == 0: height += 1
 
     maze = [[1 for _ in range(width)] for _ in range(height)]
 
-    # Track the farthest cell visited
-    max_depth = [0]
-    farthest = [(1, 1)]  # Default to start
-
-    def carve_passages(x, y, depth=0):
-        if depth > max_depth[0]:
-            max_depth[0] = depth
-            farthest[0] = (x, y)
-
+    def carve_passages(x, y):
         directions = [(0, -2), (2, 0), (0, 2), (-2, 0)]
         random.shuffle(directions)
-
         for dx, dy in directions:
             nx, ny = x + dx, y + dy
             if 0 < nx < width and 0 < ny < height and maze[ny][nx] == 1:
                 maze[ny][nx] = 0
                 maze[y + dy // 2][x + dx // 2] = 0
-                carve_passages(nx, ny, depth + 1)
+                carve_passages(nx, ny)
 
-    # Start at 1,1
+    # Start carving from (1,1)
     maze[1][1] = 0
     carve_passages(1, 1)
 
-    # Mark start and exit
-    sx, sy = 1, 1
-    ex, ey = farthest[0]
-    maze[sy][sx] = 2  # Start
-    maze[ey][ex] = 3  # Exit
+    # Find all dead ends
+    dead_ends = []
+    for y in range(1, height - 1, 2):
+        for x in range(1, width - 1, 2):
+            if maze[y][x] == 0:
+                # Count adjacent open cells
+                open_neighbors = 0
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    if maze[y + dy][x + dx] == 0:
+                        open_neighbors += 1
+                if open_neighbors == 1:
+                    dead_ends.append((x, y))
+
+    # Set start
+    maze[1][1] = 2
+
+    # Set exit to random dead end (but not the start)
+    exit_candidates = [cell for cell in dead_ends if cell != (1, 1)]
+    if exit_candidates:
+        ex, ey = random.choice(exit_candidates)
+        maze[ey][ex] = 3
+        
+    add_random_openings(maze, chance=0.15)
 
     return maze
+
+def add_random_openings(maze, chance):
+    height = len(maze)
+    width = len(maze[0])
+    for y in range(1, height - 1):
+        for x in range(1, width - 1):
+            if maze[y][x] == 1:
+                # Check if it's a wall between two open path cells
+                if (maze[y][x - 1] == 0 and maze[y][x + 1] == 0) or (maze[y - 1][x] == 0 and maze[y + 1][x] == 0):
+                    if random.random() < chance:
+                        maze[y][x] = 0
 
 @app.route('/game')
 def game():
@@ -152,7 +170,7 @@ def handle_connect():
             timer_running = True
             timer_value = 0
             # Generate a maze
-            maze = generate_maze(31,31)
+            maze = generate_maze(21,21)
         # Send maze to client
         emit('maze_data', {'maze': maze})
 
