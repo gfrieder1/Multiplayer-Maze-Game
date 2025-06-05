@@ -1,11 +1,15 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit, disconnect
+import logging
 import random
 import threading
 import time
 
 app = Flask(__name__)
 socketio = SocketIO(app)
+
+# Logging config
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # Timer state
 timer_thread = None
@@ -126,4 +130,4 @@ def handle_disconnect():
             maze = None
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+	socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

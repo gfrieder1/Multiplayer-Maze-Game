@@ -44,6 +44,9 @@
 				const container = document.getElementById('maze_container');
 				const table = document.createElement('table');
 
+				// Clear previous maze
+				container.innerHTML = '';
+				// Populate new maze
 				maze.forEach(row => {
 					const tr = document.createElement('tr');
 					row.forEach(cell => {
