@@ -26,8 +26,8 @@
 		</style>
 	</head>
 	<body>
-		<h1>This is the controller</h1>
-
+		<canvas id="voteChart"></canvas>
+		<h2>Your Vote: <span id="currVote"></span></h2>
 		<div class="button-grid">
 			<div></div>
 			<button onclick="vote('Up')">Up</button>
@@ -41,9 +41,6 @@
 			<button onclick="vote('Down')">Down</button>
 			<div></div>
     	</div>
-
-		<h2>Your Vote: <span id="currVote"></span></h2>
-    	<canvas id="voteChart"></canvas>
 
 		<script>
 			const socket = io('/controller'); // Connect to the 'controller' namespace
