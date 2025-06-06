@@ -40,7 +40,8 @@ def background_timer():
                 timer_value += 1
                 socketio.emit('timer_update', {'time': timer_value}, namespace='/game')
                 # Timer update!
-                print(f"Current votes: {votes}")
+                print(f"[Server] Current votes: {votes}")
+                process_votes()
 # Start background thread once
 threading.Thread(target=background_timer, daemon=True).start()
 
@@ -90,6 +91,35 @@ def generate_maze(width, height):
     add_random_openings(maze, chance=0.15)
 
     return maze
+
+def process_votes():
+    global maze, votes
+    if not maze:
+        return
+
+    # Count votes
+    vote_counts = {direction: 0 for direction in allowed_votes}
+    for vote in votes.values():
+        if vote['direction'] in allowed_votes:
+            vote_counts[vote['direction']] += 1
+
+    # Determine the most voted direction
+    max_votes = max(vote_counts.values())
+    most_voted = [direction for direction, count in vote_counts.items() if count == max_votes and max_votes > 0]
+
+    if most_voted:
+        if len(most_voted) == 1:
+            chosen_direction = most_voted[0]
+        else:
+            chosen_direction = 'Stop'
+        print(f"[Server] Most voted direction: {chosen_direction}")
+        # Here you can implement logic to move the player or change the maze based on the chosen direction
+        move_player(chosen_direction)
+        
+def move_player(direction):
+    print(f"[Server] Attempting to move player in direction: {direction}")
+    return
+    # TODO
 
 def add_random_openings(maze, chance):
     height = len(maze)
@@ -148,11 +178,11 @@ def handle_game_disconnect():
 
 @socketio.on('disconnect', namespace='/controller')
 def handle_controller_disconnect():
-	global controller_count
-	with lock:
-		controller_count -= 1
-		print(f"Controller disconnected. Total clients: {controller_count}")
-		votes.pop(request.sid, None)
+    global controller_count
+    with lock:
+        controller_count -= 1
+        print(f"Controller disconnected. Total clients: {controller_count}")
+        votes.pop(request.sid, None)
 
 
 @socketio.on('vote', namespace='/controller')
