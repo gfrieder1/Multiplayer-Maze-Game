@@ -1,7 +1,16 @@
 <html>
 	<head>
+		<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 		<style>
-			table { border-collapse: collapse; }
+			body {
+				text-align: center;
+			}
+			table {
+				border-collapse: collapse;
+  				margin: 0 auto;
+			}
 			td {
 				width: 20px;
 				height: 20px;
@@ -16,16 +25,40 @@
 			.exit {
 				background-color: red;
 			}
+			canvas {
+				max-width: 400px;
+				margin: 30px auto;
+			}
 		</style>
 	</head>
 	<body>
-		<h1>This is the game</h1>
 		<p>Timer: <span id="timer">...</span> seconds</p>
 		<div id="maze_container"></div>
+		<canvas id="voteChart"></canvas>
 
-		<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 		<script>
 			const socket = io('/game'); // Connect to the 'game' namespace
+
+			const ctx = document.getElementById('voteChart').getContext('2d');
+			const voteLabels = ['Up', 'Left', 'Stop', 'Right', 'Down'];
+			const voteCounts = [0, 0, 0, 0, 0];
+
+			const chart = new Chart(ctx, {
+				type: 'bar',
+				data: {
+					labels: voteLabels,
+					datasets: [{
+						label: 'Votes',
+						data: voteCounts,
+						backgroundColor: ['#36A2EB', '#FF6384', '#FFCE56', '#4BC0C0', '#9966FF']
+					}]
+				},
+				options: {
+					scales: {
+						y: { beginAtZero: true, precision: 0 }
+					}
+				}
+			});
 
 			socket.on('connect', () => {
 				console.log('Connected to server');
@@ -60,6 +93,19 @@
 				});
 
 				container.appendChild(table);
+			});
+
+			socket.on('vote_data', data => {
+				const counts = { Up: 0, Left: 0, Stop: 0, Right: 0, Down: 0 };
+				for (const sid in data.votes) {
+					const vote = data.votes[sid].direction;
+					if (counts.hasOwnProperty(vote)) {
+						counts[vote]++;
+					}
+				}
+
+				chart.data.datasets[0].data = voteLabels.map(label => counts[label]);
+				chart.update();
 			});
 		</script>
 	</body>

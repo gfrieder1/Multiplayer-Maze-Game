@@ -179,8 +179,8 @@ def handle_game_connect():
                 timer_value = 0
                 # Generate a maze
                 maze = generate_maze(21,21)
-            # Send maze to all clients
-            emit('maze_data', {'maze': maze})
+            # Send maze to game client
+            socketio.emit('maze_data', {'maze': maze}, namespace='/game')
 
 @socketio.on('connect', namespace='/controller')
 def handle_controller_connect():
@@ -220,6 +220,7 @@ def handle_vote(data):
             votes[request.sid]['direction'] = direction
             # Broadcast updated votes to all clients
             socketio.emit('vote_data', {'votes': votes}, namespace='/controller')
+            socketio.emit('vote_data', {'votes': votes}, namespace='/game')
     else:
         print(f"[Server] Invalid vote: {direction}")
 
