@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, render_template_string, request
 from flask_socketio import SocketIO, emit, disconnect
 import logging
 import random
@@ -22,7 +22,6 @@ player_x = None
 player_y = None
 
 # Connected client info
-game_count = 0
 controller_count = 0
 
 # Lock for thread safety
@@ -138,7 +137,7 @@ def move_player(direction):
 
     print(f"[Server] Moving player in direction: {direction}")
     
-	# Implement player movement logic based on the direction
+    # Implement player movement logic based on the direction
     if direction == 'Stop':
         return
     elif direction == 'Up':
@@ -156,7 +155,6 @@ def move_player(direction):
         maze[new_y][new_x] = 2  # Set new position
         player_x, player_y = new_x, new_y
         print(f"[Server] Player moved to ({player_x}, {player_y})")
-    
 
 @app.route('/game')
 def game():
@@ -168,19 +166,17 @@ def controller():
 
 @socketio.on('connect', namespace='/game')
 def handle_game_connect():
-    global timer_running, timer_thread, timer_value, game_count, maze
+    global timer_running, timer_thread, timer_value, maze, authorized_game_sid
     with lock:
-        if game_count <= 0:
-            game_count = 1
-            print(f"Game connected. Total gamers: {game_count}")
-            if not timer_running:
-                # Start a game session!
-                timer_running = True
-                timer_value = 0
-                # Generate a maze
-                maze = generate_maze(21,21)
-            # Send maze to game client
-            socketio.emit('maze_data', {'maze': maze}, namespace='/game')
+        print(f"[Server] Game client connected.")
+        if not timer_running:
+            # Start a game session!
+            timer_running = True
+            timer_value = 0
+            # Generate a maze
+            maze = generate_maze(21,21)
+        # Send maze to game client
+        socketio.emit('maze_data', {'maze': maze}, namespace='/game')
 
 @socketio.on('connect', namespace='/controller')
 def handle_controller_connect():
@@ -193,14 +189,7 @@ def handle_controller_connect():
 
 @socketio.on('disconnect', namespace='/game')
 def handle_game_disconnect():
-    global timer_running, timer_value, game_count, maze
-    with lock:
-        game_count -= 1
-        print(f"Game disconnected. Total gamers: {game_count}")
-        if game_count <= 0: # Should never be negative
-            timer_running = False
-            timer_value = 0
-            maze = None
+    print(f"[Server] Game client disconnected.")
 
 @socketio.on('disconnect', namespace='/controller')
 def handle_controller_disconnect():
@@ -209,7 +198,6 @@ def handle_controller_disconnect():
         controller_count -= 1
         print(f"Controller disconnected. Total clients: {controller_count}")
         votes.pop(request.sid, None)
-
 
 @socketio.on('vote', namespace='/controller')
 def handle_vote(data):
@@ -223,6 +211,20 @@ def handle_vote(data):
             socketio.emit('vote_data', {'votes': votes}, namespace='/game')
     else:
         print(f"[Server] Invalid vote: {direction}")
+
+@socketio.on('reset_game', namespace='/game')
+def handle_reset_game():
+    global maze, timer_value, timer_running
+
+    with lock:
+        print("[Server] Resetting game...")
+        maze = generate_maze(21, 21)
+        timer_value = 0
+        timer_running = True
+
+        # Broadcast updates to all /game clients
+        socketio.emit('maze_data', {'maze': maze}, namespace='/game')
+        socketio.emit('timer_update', {'time': timer_value}, namespace='/game')
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

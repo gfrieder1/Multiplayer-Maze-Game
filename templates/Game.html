@@ -32,7 +32,7 @@
 		</style>
 	</head>
 	<body>
-		<p>Timer: <span id="timer">...</span> seconds</p>
+		<p>Timer: <span id="timer">...</span> seconds <button onclick="resetGame()">New Maze</button></p>
 		<div id="maze_container"></div>
 		<canvas id="voteChart"></canvas>
 
@@ -60,12 +60,20 @@
 				}
 			});
 
+			function resetGame() {
+				socket.emit('reset_game');
+			}
+
 			socket.on('connect', () => {
 				console.log('Connected to server');
 			});
 
 			socket.on('disconnect', () => {
 				console.log('Disconnected from server');
+			});
+
+			socket.on('reject', (data) => {
+				document.body.innerHTML = `<h1>${data.reason}</h1>`;
 			});
 
 			socket.on('timer_update', data => {
