@@ -18,6 +18,8 @@ timer_value = 0
 
 # Maze state
 maze = None
+player_x = None
+player_y = None
 
 # Connected client info
 game_count = 0
@@ -32,7 +34,7 @@ votes = {}
 
 # Define background timer thread
 def background_timer():
-    global timer_value
+    global timer_running, timer_value, votes, maze
     while True:
         time.sleep(1)
         with lock:
@@ -40,13 +42,16 @@ def background_timer():
                 timer_value += 1
                 socketio.emit('timer_update', {'time': timer_value}, namespace='/game')
                 # Timer update!
-                print(f"[Server] Current votes: {votes}")
+                print(f"\n[Server] Current votes: {votes}")
                 process_votes()
+                socketio.emit('maze_data', {'maze': maze}, namespace='/game')
 # Start background thread once
 threading.Thread(target=background_timer, daemon=True).start()
 
 # Maze (2D array) generation function
 def generate_maze(width, height):
+    global maze, player_x, player_y
+
     if width % 2 == 0: width += 1
     if height % 2 == 0: height += 1
 
@@ -81,6 +86,7 @@ def generate_maze(width, height):
 
     # Set start
     maze[1][1] = 2
+    player_x, player_y = 1, 1
 
     # Set exit to random dead end (but not the start)
     exit_candidates = [cell for cell in dead_ends if cell != (1, 1)]
@@ -91,6 +97,17 @@ def generate_maze(width, height):
     add_random_openings(maze, chance=0.15)
 
     return maze
+
+def add_random_openings(maze, chance):
+    height = len(maze)
+    width = len(maze[0])
+    for y in range(1, height - 1):
+        for x in range(1, width - 1):
+            if maze[y][x] == 1:
+                # Check if it's a wall between two open path cells
+                if (maze[y][x - 1] == 0 and maze[y][x + 1] == 0) or (maze[y - 1][x] == 0 and maze[y + 1][x] == 0):
+                    if random.random() < chance:
+                        maze[y][x] = 0
 
 def process_votes():
     global maze, votes
@@ -112,25 +129,34 @@ def process_votes():
             chosen_direction = most_voted[0]
         else:
             chosen_direction = 'Stop'
-        print(f"[Server] Most voted direction: {chosen_direction}")
+        print(f"[Server] Chosen direction: {chosen_direction}")
         # Here you can implement logic to move the player or change the maze based on the chosen direction
         move_player(chosen_direction)
         
 def move_player(direction):
-    print(f"[Server] Attempting to move player in direction: {direction}")
-    return
-    # TODO
+    global player_x, player_y, maze
 
-def add_random_openings(maze, chance):
-    height = len(maze)
-    width = len(maze[0])
-    for y in range(1, height - 1):
-        for x in range(1, width - 1):
-            if maze[y][x] == 1:
-                # Check if it's a wall between two open path cells
-                if (maze[y][x - 1] == 0 and maze[y][x + 1] == 0) or (maze[y - 1][x] == 0 and maze[y + 1][x] == 0):
-                    if random.random() < chance:
-                        maze[y][x] = 0
+    print(f"[Server] Moving player in direction: {direction}")
+    
+	# Implement player movement logic based on the direction
+    if direction == 'Stop':
+        return
+    elif direction == 'Up':
+        new_x, new_y = player_x, player_y - 1
+    elif direction == 'Down':
+        new_x, new_y = player_x, player_y + 1
+    elif direction == 'Left':
+        new_x, new_y = player_x - 1, player_y
+    elif direction == 'Right':
+        new_x, new_y = player_x + 1, player_y
+    
+    # Check if the new position is valid
+    if maze[new_y][new_x] == 0 or maze[new_y][new_x] == 3:
+        maze[player_y][player_x] = 0  # Clear old position
+        maze[new_y][new_x] = 2  # Set new position
+        player_x, player_y = new_x, new_y
+        print(f"[Server] Player moved to ({player_x}, {player_y})")
+    
 
 @app.route('/game')
 def game():
