@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, disconnect
 import logging
 import random
@@ -20,10 +20,15 @@ timer_value = 0
 maze = None
 
 # Connected client info
-client_count = 0
+game_count = 0
+controller_count = 0
 
 # Lock for thread safety
 lock = threading.Lock()
+
+# Vote system
+allowed_votes = ['Up', 'Left', 'Stop', 'Right', 'Down']
+votes = {}
 
 # Define background timer thread
 def background_timer():
@@ -33,7 +38,9 @@ def background_timer():
         with lock:
             if timer_running:
                 timer_value += 1
-                socketio.emit('timer_update', {'time': timer_value})
+                socketio.emit('timer_update', {'time': timer_value}, namespace='/game')
+                # Timer update!
+                print(f"Current votes: {votes}")
 # Start background thread once
 threading.Thread(target=background_timer, daemon=True).start()
 
@@ -103,31 +110,62 @@ def game():
 def controller():
     return render_template('Controller.html')
 
-@socketio.on('connect')
-def handle_connect():
-    global timer_running, timer_thread, timer_value, client_count, maze
+@socketio.on('connect', namespace='/game')
+def handle_game_connect():
+    global timer_running, timer_thread, timer_value, game_count, maze
     with lock:
-        client_count += 1
-        print(f"Client connected. Total clients: {client_count}")
-        if not timer_running:
-            # Start a game session!
-            timer_running = True
-            timer_value = 0
-            # Generate a maze
-            maze = generate_maze(21,21)
-        # Send maze to client
-        emit('maze_data', {'maze': maze})
+        if game_count <= 0:
+            game_count = 1
+            print(f"Game connected. Total gamers: {game_count}")
+            if not timer_running:
+                # Start a game session!
+                timer_running = True
+                timer_value = 0
+                # Generate a maze
+                maze = generate_maze(21,21)
+            # Send maze to all clients
+            emit('maze_data', {'maze': maze})
 
-@socketio.on('disconnect')
-def handle_disconnect():
-    global timer_running, client_count
+@socketio.on('connect', namespace='/controller')
+def handle_controller_connect():
+    global controller_count
     with lock:
-        client_count -= 1
-        print(f"Client disconnected. Total clients: {client_count}")
-        if client_count <= 0: # Should never be negative
+        controller_count += 1
+        print(f"Controller connected. Total clients: {controller_count}")
+        # Initialize votes for this controller
+        votes[request.sid] = {'direction': None}
+
+@socketio.on('disconnect', namespace='/game')
+def handle_game_disconnect():
+    global timer_running, timer_value, game_count, maze
+    with lock:
+        game_count -= 1
+        print(f"Game disconnected. Total gamers: {game_count}")
+        if game_count <= 0: # Should never be negative
             timer_running = False
             timer_value = 0
             maze = None
 
+@socketio.on('disconnect', namespace='/controller')
+def handle_controller_disconnect():
+	global controller_count
+	with lock:
+		controller_count -= 1
+		print(f"Controller disconnected. Total clients: {controller_count}")
+		votes.pop(request.sid, None)
+
+
+@socketio.on('vote', namespace='/controller')
+def handle_vote(data):
+    direction = data.get('direction')
+    print(f"[Server] Vote received: {direction}")
+    if direction in allowed_votes:
+        with lock:
+            votes[request.sid]['direction'] = direction
+            # Broadcast updated votes to all clients
+            socketio.emit('vote_data', {'votes': votes}, namespace='/controller')
+    else:
+        print(f"[Server] Invalid vote: {direction}")
+
 if __name__ == '__main__':
-	socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

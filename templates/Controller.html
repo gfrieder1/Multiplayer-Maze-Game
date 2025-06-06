@@ -1,14 +1,46 @@
 <html>
 	<head>
 		<style>
+			body {
+				font-family: sans-serif;
+				text-align: center;
+			}
+			.button-grid {
+				display: grid;
+				grid-template-columns: repeat(3, 80px);
+				gap: 10px;
+				justify-content: center;
+				margin-top: 30px;
+			}
+			button {
+				padding: 10px;
+				font-size: 16px;
+				cursor: pointer;
+			}
 		</style>
 	</head>
 	<body>
 		<h1>This is the controller</h1>
 
+		<div class="button-grid">
+			<div></div>
+			<button onclick="vote('Up')">Up</button>
+			<div></div>
+
+			<button onclick="vote('Left')">Left</button>
+			<button onclick="vote('Stop')">Stop</button>
+			<button onclick="vote('Right')">Right</button>
+
+			<div></div>
+			<button onclick="vote('Down')">Down</button>
+			<div></div>
+    	</div>
+
+		<h2>Current Vote: <span id="currVote"></span></h2>
+
 		<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 		<script>
-			const socket = io(); // Connect to the 'controller' namespace
+			const socket = io('/controller'); // Connect to the 'controller' namespace
 
 			socket.on('connect', () => {
 				console.log('Connected to server');
@@ -17,6 +49,18 @@
 			socket.on('disconnect', () => {
 				console.log('Disconnected from server');
 			});
+
+			socket.on('vote_data', data => {
+				console.log('Vote Update Received:', data);
+				// Render vote totals
+				// <TODO>
+			});
+
+			function vote(direction) {
+				socket.emit('vote', { direction: direction });
+				console.log(`Voted: ${direction}`);
+				document.getElementById('currVote').innerText = direction;
+			}
 		</script>
 	</body>
 </html>
