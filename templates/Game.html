@@ -2,6 +2,7 @@
 	<head>
 		<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
 
 		<style>
 			body {
@@ -26,15 +27,23 @@
 				background-color: red;
 			}
 			canvas {
-				max-width: 400px;
-				margin: 30px auto;
+				margin: 10px auto;
 			}
 		</style>
 	</head>
 	<body>
-		<p><strong>Timer:</strong> <span id="timer">...</span> seconds <button onclick="resetGame()">New Maze</button></p>
-		<div id="maze_container"></div>
-		<canvas id="voteChart"></canvas>
+		<table class="table">
+			<tr>
+				<td>
+					<div id="maze_container"></div>
+				</td>
+				<td style="text-align: center;">
+					<h1>Timer: <span id="timer">...</span> seconds</h1>
+					<canvas id="voteChart"></canvas>
+					<button onclick="resetGame()">New Maze</button>
+				</td>
+			</tr>
+		</table>
 
 		<script>
 			const socket = io('/game'); // Connect to the 'game' namespace
